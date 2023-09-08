@@ -4,9 +4,33 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"slices"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 )
+
+// we can't add []string to sync.Pool directly, because converting []string to any
+// will allocate additional memory.
+// so we use a wrapper to hold []string.
+type keySorter struct {
+	buf []string
+}
+
+func (s *keySorter) keys(f logrus.Fields) []string {
+	var keys []string
+	if s.buf == nil || cap(s.buf) < len(f) {
+		keys = make([]string, 0, len(f))
+	} else {
+		keys = s.buf[:0]
+	}
+	for k := range f {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	s.buf = keys
+	return keys
+}
 
 // NewLogger returns a new logrus.Logger with slog.Handler.
 func NewLogger(h slog.Handler) *logrus.Logger {
@@ -22,7 +46,8 @@ func NewLogger(h slog.Handler) *logrus.Logger {
 var _ logrus.Hook = (*Hook)(nil)
 
 type Hook struct {
-	h slog.Handler
+	h      slog.Handler
+	sorter sync.Pool
 }
 
 func New(h slog.Handler) *Hook {
@@ -42,7 +67,7 @@ func (h *Hook) Fire(entry *logrus.Entry) error {
 		pc = entry.Caller.PC
 	}
 	record := slog.NewRecord(t, lv, entry.Message, pc)
-	attrs := fieldToAttrs(entry.Data)
+	attrs := h.fieldToAttrs(entry.Data)
 	record.AddAttrs(attrs...)
 	h.h.Handle(ctx, record)
 	return nil
@@ -74,11 +99,22 @@ func slogLevel(l logrus.Level) slog.Level {
 	}
 }
 
-func fieldToAttrs(f logrus.Fields) []slog.Attr {
-	attrs := make([]slog.Attr, 0, len(f))
-	for k, v := range f {
-		attrs = append(attrs, slog.Any(k, v))
+func (h *Hook) newSorter() *keySorter {
+	if v := h.sorter.Get(); v != nil {
+		return v.(*keySorter)
 	}
+	return &keySorter{}
+}
+
+func (h *Hook) fieldToAttrs(f logrus.Fields) []slog.Attr {
+	sorter := h.newSorter()
+	keys := sorter.keys(f)
+
+	attrs := make([]slog.Attr, 0, len(f))
+	for _, k := range keys {
+		attrs = append(attrs, slog.Any(k, f[k]))
+	}
+	h.sorter.Put(sorter)
 	return attrs
 }
 

@@ -3,8 +3,10 @@ package sloghook
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -330,6 +332,29 @@ func TestHook_Fields(t *testing.T) {
 	}
 }
 
+func TestHook_SortKeys(t *testing.T) {
+	w := &bytes.Buffer{}
+	h := slog.NewTextHandler(w, nil)
+
+	logger := NewLogger(h)
+	for i := 0; i < 10; i++ {
+		logger.WithFields(logrus.Fields{
+			"A": "1",
+			"B": "2",
+			"C": "3",
+			"D": "4",
+			"E": "5",
+			"F": "6",
+			"G": "7",
+			"H": "8",
+		}).Infof("hello%d", i)
+	}
+
+	if !strings.HasSuffix(w.String(), "level=INFO msg=hello9 A=1 B=2 C=3 D=4 E=5 F=6 G=7 H=8\n") {
+		t.Errorf("field values are not sorted: %s", w.String())
+	}
+}
+
 func TestHook_Group(t *testing.T) {
 	w := &bytes.Buffer{}
 	h := slog.NewJSONHandler(w, &slog.HandlerOptions{
@@ -358,5 +383,25 @@ func TestHook_Group(t *testing.T) {
 	}
 	if v.Msg != "hello world" {
 		t.Errorf("unexpected msg: %s", v.Msg)
+	}
+}
+
+func BenchmarkHook(b *testing.B) {
+	h := slog.NewTextHandler(io.Discard, nil)
+	logger := logrus.New()
+	entry := logrus.NewEntry(logger).WithFields(logrus.Fields{
+		"A": "1",
+		"B": "2",
+		"C": "3",
+		"D": "4",
+		"E": "5",
+		"F": "6",
+		"G": "7",
+		"H": "8",
+	})
+	hook := New(h)
+
+	for i := 0; i < b.N; i++ {
+		hook.Fire(entry)
 	}
 }

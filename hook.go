@@ -8,6 +8,17 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// NewLogger returns a new logrus.Logger with slog.Handler.
+func NewLogger(h slog.Handler) *logrus.Logger {
+	logger := logrus.New()
+	logger.SetFormatter(NewFormatter())
+	logger.SetOutput(Writer)
+	logger.AddHook(New(h))
+	logger.ReportCaller = true
+	logger.SetLevel(logrus.TraceLevel)
+	return logger
+}
+
 var _ logrus.Hook = (*Hook)(nil)
 
 type Hook struct {
@@ -54,9 +65,9 @@ func slogLevel(l logrus.Level) slog.Level {
 		return slog.LevelWarn
 	case logrus.ErrorLevel:
 		return slog.LevelError
-	case logrus.FatalLevel:
-		return slog.LevelError + 1
 	case logrus.PanicLevel:
+		return slog.LevelError + 1
+	case logrus.FatalLevel:
 		return slog.LevelError + 2
 	default:
 		return slog.LevelInfo

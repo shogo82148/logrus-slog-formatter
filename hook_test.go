@@ -337,18 +337,20 @@ func TestHook_SortKeys(t *testing.T) {
 	h := slog.NewTextHandler(w, nil)
 
 	logger := NewLogger(h)
-	logger.WithFields(logrus.Fields{
-		"A": "1",
-		"B": "2",
-		"C": "3",
-		"D": "4",
-		"E": "5",
-		"F": "6",
-		"G": "7",
-		"H": "8",
-	}).Info("hello world")
+	for i := 0; i < 10; i++ {
+		logger.WithFields(logrus.Fields{
+			"A": "1",
+			"B": "2",
+			"C": "3",
+			"D": "4",
+			"E": "5",
+			"F": "6",
+			"G": "7",
+			"H": "8",
+		}).Infof("hello%d", i)
+	}
 
-	if !strings.HasSuffix(w.String(), " A=1 B=2 C=3 D=4 E=5 F=6 G=7 H=8\n") {
+	if !strings.HasSuffix(w.String(), "level=INFO msg=hello9 A=1 B=2 C=3 D=4 E=5 F=6 G=7 H=8\n") {
 		t.Errorf("field values are not sorted: %s", w.String())
 	}
 }

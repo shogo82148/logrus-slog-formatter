@@ -32,7 +32,12 @@ func (s *keySorter) keys(f logrus.Fields) []string {
 	return keys
 }
 
-// NewLogger returns a new logrus.Logger with slog.Handler.
+// NewLogger returns a new pre-configured [logrus.Logger[.
+//
+// - Configure [Hook].
+// - Output will be ignored all.
+// - enable ReportCaller.
+// - set logrus.TraceLevel. log level filtering is done by [log/slog].
 func NewLogger(h slog.Handler) *logrus.Logger {
 	logger := logrus.New()
 	logger.SetFormatter(NewFormatter())
@@ -45,15 +50,18 @@ func NewLogger(h slog.Handler) *logrus.Logger {
 
 var _ logrus.Hook = (*Hook)(nil)
 
+// Hook is a [logrus.Hook] with [slog.Handler].
 type Hook struct {
 	h      slog.Handler
 	sorter sync.Pool
 }
 
+// New returns a new [logrus.Hook] with slog.Handler.
 func New(h slog.Handler) *Hook {
 	return &Hook{h: h}
 }
 
+// Fire implements [logrus.Hook] interface.
 func (h *Hook) Fire(entry *logrus.Entry) error {
 	ctx := entry.Context
 	if ctx == nil {
